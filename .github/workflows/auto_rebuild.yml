@@ -1,4 +1,4 @@
-name: 抱抱脸空间自动重新构建
+name: 🤗空间自动构建
 
 on:
   workflow_dispatch:
@@ -112,7 +112,7 @@ jobs:
               summary_html = f"<p>{summary_plain}</p>"
               now = datetime.datetime.now(pytz.timezone('Asia/Shanghai'))
               date_string = now.strftime("%m月%d日")
-              send_email(f"{date_string}抱抱脸空间重新构建结果", summary_plain, summary_html)
+              send_email(f"🤗空间构建结果", summary_plain, summary_html)
               with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
                   print(f"summary<<EOF", file=f)
                   print(summary_plain, file=f)
@@ -133,7 +133,7 @@ jobs:
               else:
                   unknown_spaces.append(space)
 
-          summary_plain = f"总计抱抱脸空间数: {len(space_list)}\n"
+          summary_plain = f"总计空间数: {len(space_list)}\n"
           summary_plain += f"成功数量: {len(success_spaces)}\n"
           summary_plain += f"失败数量: {len(failed_spaces)}\n"
           summary_plain += f"未知状态数量: {len(unknown_spaces)}\n"
@@ -175,15 +175,15 @@ jobs:
                       border-radius: 4px;
                   }}
                   .success {{
-                      background-color: #d4edda; 
+                      background-color: #d4edda; /* Success green */
                       color: #155724;
                   }}
                   .failure {{
-                      background-color: #f8d7da; 
+                      background-color: #f8d7da; /* Danger red */
                       color: #721c24;
                   }}
                   .unknown {{
-                      background-color: #fff3cd; 
+                      background-color: #fff3cd; /* Warning yellow */
                       color: #856404;
                   }}
                   strong {{
@@ -193,8 +193,8 @@ jobs:
           </head>
           <body>
               <div class="container">
-                  <h1>抱抱脸空间重新构建结果</h1>
-                  <p><strong>日期:</strong> {datetime.datetime.now(pytz.timezone('Asia/Shanghai')).strftime("%Y-%m-%d %H:%M:%S %Z%z")}</p>
+                  <h1>🤗空间构建结果</h1>
+                  <p><strong>日期:</strong> {datetime.datetime.now(pytz.timezone('Asia/Shanghai')).strftime("%Y-%m-%d %H:%M:%S")}</p>
                   <p><strong>总计空间数:</strong> {len(space_list)}</p>
                   <p><strong>成功数量:</strong> <span class='success'>{len(success_spaces)}</span></p>
                   <p><strong>失败数量:</strong> <span class='failure'>{len(failed_spaces)}</span></p>
@@ -212,7 +212,7 @@ jobs:
 
           now = datetime.datetime.now(pytz.timezone('Asia/Shanghai'))
           date_string = now.strftime("%m月%d日")
-          send_email(f"{date_string}抱抱脸空间重新构建结果", summary_plain, summary_html)
+          send_email(f"🤗空间构建结果", summary_plain, summary_html)
           with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
               print(f"summary<<EOF", file=f)
               print(summary_plain, file=f)
@@ -230,4 +230,4 @@ jobs:
       - name: 完成状态
         if: always()
         run: |
-          echo "🏁重新构建流程已完成"
+          echo "🏁构建流程已完成"
