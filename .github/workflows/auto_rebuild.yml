@@ -25,16 +25,16 @@ jobs:
       - uses: actions/setup-python@v4
         with:
           python-version: '3.10'
-      - run: |
-          python -m pip install --upgrade pip
-          pip install requests pytz
+      - run: pip install requests pytz
       - id: rebuild
         run: |
           python <<EOF
-          import requests, time, os, smtplib, datetime, json
+          import requests, time, os, smtplib, datetime, json, logging
           from email.mime.multipart import MIMEMultipart
           from email.mime.text import MIMEText
           import pytz
+
+          logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
           hf_token = os.environ["HF_TOKEN"]
           username = os.environ["USERNAME"]
@@ -50,37 +50,44 @@ jobs:
 
           def rebuild_space(space_name, timeout_seconds):
               full_space_name = f"{username}/{space_name}"
-              print(f"\n{'-'*50}")
-              print(f"🔄正在重新构建空间: {full_space_name}")
+              logging.info(f"开始重新构建空间: {full_space_name}")
               rebuild_url = f"https://huggingface.co/api/spaces/{full_space_name}/restart?factory=true"
               status_url = f"https://huggingface.co/api/spaces/{full_space_name}/runtime"
               headers = {"Authorization": f"Bearer {hf_token}", "Content-Type": "application/json"}
+
+              try:
+                  response = requests.post(rebuild_url, headers=headers)
+                  response.raise_for_status()
+                  logging.info(f"✅空间{space_name}重新构建请求发送成功")
+              except requests.exceptions.RequestException as e:
+                  logging.error(f"❌空间{space_name}重新构建请求失败: {e}")
+                  return False
+
               start_time = time.time()
               attempt = 0
               max_attempts = 10
               while time.time() - start_time < timeout_seconds and attempt < max_attempts:
-                  print(f"⏳等待30秒后检查状态... (尝试 {attempt+1}/{max_attempts})")
                   time.sleep(30)
                   try:
                       status_response = requests.get(status_url, headers=headers)
                       status_response.raise_for_status()
                       status_data = status_response.json()
                       stage = status_data.get("stage", "")
-                      print(f"当前状态: {stage}")
+                      logging.info(f"空间{space_name}当前状态: {stage}")
                       if stage == "RUNNING":
-                          print(f"✅空间{space_name}已成功重新构建!")
+                          logging.info(f"✅空间{space_name}已成功重新构建!")
                           return True
                       elif "ERROR" in stage:
-                          print(f"❌空间{space_name}构建失败: {stage}")
+                          logging.error(f"❌空间{space_name}构建失败: {stage}")
                           return False
                   except requests.exceptions.RequestException as e:
-                      print(f"❌请求错误: {e}")
+                      logging.error(f"❌空间{space_name}状态请求失败: {e}")
                       return False
                   except Exception as e:
-                      print(f"❌发生错误: {e}")
+                      logging.exception(f"❌空间{space_name}发生未知错误: {e}")
                       return False
                   attempt += 1
-              print(f"⚠️空间{space_name}构建状态未知 (超时或达到最大尝试次数)")
+              logging.warning(f"⚠️空间{space_name}构建状态未知 (超时或达到最大尝试次数)")
               return None
 
           def send_email(subject, body, html_body):
@@ -97,15 +104,15 @@ jobs:
                       server.starttls()
                       server.login(email_sender, email_password)
                       server.send_message(msg)
-                  print("✅邮件发送成功")
+                  logging.info("✅邮件发送成功")
               except Exception as e:
-                  print(f"❌邮件发送失败: {e}")
+                  logging.error(f"❌邮件发送失败: {e}")
 
           start_time = time.time()
           results = []
           for space in space_list:
               if time.time() - start_time > global_timeout_seconds:
-                  print(f"⚠️全局超时，剩余空间未处理")
+                  logging.warning(f"⚠️全局超时，剩余空间未处理")
                   break
               result = rebuild_space(space, space_timeout_seconds)
               results.append({"space": space, "result": result})
