@@ -5,25 +5,25 @@ on:
   schedule:
     - cron: '0 20 * * *'  
 env:
-  HF_TOKEN: ""
-  USERNAME: ""
-  EMAIL_SENDER: ""
-  EMAIL_PASSWORD: ""
-  EMAIL_RECEIVER: ""
+  HF_TOKEN: ${{ secrets.HF_TOKEN }}
+  USERNAME: ${{ secrets.USERNAME }}
+  EMAIL_SENDER: ${{ secrets.EMAIL_SENDER }}
+  EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+  EMAIL_RECEIVER: ${{ secrets.EMAIL_RECEIVER }}
   SMTP_SERVER: "smtp.gmail.com"
   SMTP_PORT: "587"
-  SPACE_LIST: ""
+  SPACE_LIST: ${{ secrets.SPACE_LIST }}
 
 jobs:
   rebuild:
     runs-on: ubuntu-latest
     steps:
       - name: 检出代码
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
       - name: 配置Python环境
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         with:
-          python-version: '3.9'
+          python-version: '3.10'
       - name: 安装依赖包
         run: |
           python -m pip install --upgrade pip
@@ -32,112 +32,112 @@ jobs:
         id: rebuild
         run: |
           python <<EOF
-          import requests,time,os,smtplib
+          import requests, time, os, smtplib
           from email.mime.text import MIMEText
-          HF_TOKEN=os.environ['HF_TOKEN']
-          USERNAME=os.environ['USERNAME']
-          EMAIL_SENDER=os.environ['EMAIL_SENDER']
-          EMAIL_PASSWORD=os.environ['EMAIL_PASSWORD']
-          EMAIL_RECEIVER=os.environ['EMAIL_RECEIVER'].split(',')
-          SMTP_SERVER=os.environ.get('SMTP_SERVER','smtp.gmail.com')
-          SMTP_PORT=int(os.environ.get('SMTP_PORT',587))
-          SPACE_LIST_STR=os.environ.get('SPACE_LIST','')
-          SPACE_LIST = [space.strip() for space in SPACE_LIST_STR.split(',') if space.strip()]
+
+          hf_token = os.environ["HF_TOKEN"]
+          username = os.environ["USERNAME"]
+          email_sender = os.environ["EMAIL_SENDER"]
+          email_password = os.environ["EMAIL_PASSWORD"]
+          email_receiver = os.environ["EMAIL_RECEIVER"].split(",")
+          smtp_server = os.environ.get("SMTP_SERVER", "smtp.gmail.com")
+          smtp_port = int(os.environ.get("SMTP_PORT", 587))
+          space_list_str = os.environ.get("SPACE_LIST", "")
+          space_list = [space.strip() for space in space_list_str.split(",") if space.strip()]
+
           def rebuild_space(space_name):
-              full_space_name=f"{USERNAME}/{space_name}"
-              print(f"\n{'='*50}")
-              print(f"🔄开始重新构建空间:{full_space_name}")
-              rebuild_url=f"https://huggingface.co/api/spaces/{full_space_name}/restart?factory=true"
-              status_url=f"https://huggingface.co/api/spaces/{full_space_name}/runtime"
-              headers={"Authorization":f"Bearer {HF_TOKEN}","Content-Type":"application/json"}
+              full_space_name = f"{username}/{space_name}"
+              print(f"\n{'-'*50}")
+              print(f"🔄 正在重新构建空间: {full_space_name}")
+              rebuild_url = f"https://huggingface.co/api/spaces/{full_space_name}/restart?factory=true"
+              status_url = f"https://huggingface.co/api/spaces/{full_space_name}/runtime"
+              headers = {"Authorization": f"Bearer {hf_token}", "Content-Type": "application/json"}
               try:
-                  response=requests.post(rebuild_url,headers=headers)
-                  if response.status_code==200:
-                      print(f"✅重新构建请求已发送成功")
-                      max_attempts=10
-                      for attempt in range(max_attempts):
-                          print(f"⏳等待30秒后检查状态...(尝试{attempt+1}/{max_attempts})")
-                          time.sleep(30)
-                          try:
-                              status_response=requests.get(status_url,headers=headers)
-                              if status_response.status_code==200:
-                                  status_data=status_response.json()
-                                  stage=status_data.get("stage","")
-                                  print(f"当前状态:{stage}")
-                                  if stage=="RUNNING":
-                                      print(f"✅空间{space_name}已成功重新构建!")
-                                      return True
-                                  elif stage=="RUNNING_BUILDING":
-                                      print("🏗️空间正在构建中...")
-                                  elif"ERROR"in stage:
-                                      print(f"❌检测到错误:{stage}")
-                                      return False
-                              else:
-                                  print(f"⚠️获取状态失败，状态码:{status_response.status_code}")
-                          except requests.RequestException as e:
-                              print(f"⚠️请求异常:{str(e)}")
-                      print("⚠️达到最大尝试次数，重新构建状态未知")
-                      return None
-                  else:
-                      print(f"❌重新构建请求失败.状态码:{response.status_code}")
-                      print(f"响应内容:{response.text}")
-                      return False
-              except Exception as e:
-                  print(f"❌发生错误:{str(e)}")
+                  response = requests.post(rebuild_url, headers=headers)
+                  response.raise_for_status()  # 抛出 HTTP 错误异常
+                  print("✅ 重新构建请求已发送成功")
+
+                  max_attempts = 10
+                  for attempt in range(max_attempts):
+                      print(f"⏳ 等待 30 秒后检查状态... (尝试 {attempt+1}/{max_attempts})")
+                      time.sleep(30)
+                      status_response = requests.get(status_url, headers=headers)
+                      status_response.raise_for_status()  
+                      status_data = status_response.json()
+                      stage = status_data.get("stage", "")
+                      print(f"当前状态: {stage}")
+                      if stage == "RUNNING":
+                          print(f"✅ 空间 {space_name} 已成功重新构建!")
+                          return True
+                      elif stage == "RUNNING_BUILDING":
+                          print("🏗️ 空间正在构建中...")
+                      elif "ERROR" in stage:
+                          print(f"❌ 检测到错误: {stage}")
+                          return False
+                  print("⚠️ 达到最大尝试次数，重新构建状态未知")
+                  return None
+              except requests.exceptions.RequestException as e:
+                  print(f"❌ 请求错误: {e}")
                   return False
-          def send_email(subject,body):
-              msg=MIMEText(body)
-              msg['Subject']=subject
-              msg['From']=EMAIL_SENDER
-              msg['To']=', '.join(EMAIL_RECEIVER)
-              try:
-                  with smtplib.SMTP(SMTP_SERVER,SMTP_PORT)as server:
-                      server.starttls()
-                      server.login(EMAIL_SENDER,EMAIL_PASSWORD)
-                      server.send_message(msg)
-                  print("✅邮件发送成功")
               except Exception as e:
-                  print(f"❌邮件发送失败:{str(e)}")
-          success_spaces=[]
-          failed_spaces=[]
-          unknown_spaces=[]
-          if not SPACE_LIST:
-              print("⚠️SPACE_LIST为空，没有需要重新构建的空间。")
-              summary="⚠️SPACE_LIST为空，没有需要重新构建的空间。"
-              send_email("Hugging Face空间重新构建结果",summary)
-              with open(os.environ['GITHUB_OUTPUT'],'a')as f:
-                  print("summary<<EOF",file=f)
-                  print(summary,file=f)
-                  print("EOF",file=f)
-                  print(f"exit_code=0",file=f)
+                  print(f"❌ 发生错误: {e}")
+                  return False
+
+          def send_email(subject, body):
+              msg = MIMEText(body)
+              msg["Subject"] = subject
+              msg["From"] = email_sender
+              msg["To"] = ", ".join(email_receiver)
+              try:
+                  with smtplib.SMTP(smtp_server, smtp_port) as server:
+                      server.starttls()
+                      server.login(email_sender, email_password)
+                      server.send_message(msg)
+                  print("✅ 邮件发送成功")
+              except Exception as e:
+                  print(f"❌ 邮件发送失败: {e}")
+
+          if not space_list:
+              print("⚠️ SPACE_LIST 为空，没有需要重新构建的空间。")
+              summary = "⚠️ SPACE_LIST 为空，没有需要重新构建的空间。"
+              send_email("Hugging Face 空间重新构建结果", summary)
+              with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+                  print(f"summary<<EOF", file=f)
+                  print(summary, file=f)
+                  print(f"EOF", file=f)
+                  print(f"exit_code=0", file=f)
               exit(0)
 
-          print(f"🚀准备重新构建以下空间:{','.join(SPACE_LIST)}")
-          for space in SPACE_LIST:
-              result=rebuild_space(space)
+          print(f"🚀 准备重新构建以下空间: {', '.join(space_list)}")
+          success_spaces = []
+          failed_spaces = []
+          unknown_spaces = []
+          for space in space_list:
+              result = rebuild_space(space)
               if result is True:
                   success_spaces.append(space)
               elif result is False:
                   failed_spaces.append(space)
               else:
                   unknown_spaces.append(space)
-          summary=f"总计空间数:{len(SPACE_LIST)}\n"
-          summary+=f"成功数量:{len(success_spaces)}\n"
-          summary+=f"失败数量:{len(failed_spaces)}\n"
-          summary+=f"未知状态数量:{len(unknown_spaces)}\n"
-          summary+="---\n具体结果:\n"
-          summary+="\n".join([f"✅{space}重新构建成功"for space in success_spaces])
-          summary+="\n".join([f"❌{space}重新构建失败"for space in failed_spaces])
-          summary+="\n".join([f"❓{space}重新构建状态未知"for space in unknown_spaces])
-          print("\n"+"="*50)
-          print("📊重新构建总结:")
+
+          summary = f"总计空间数: {len(space_list)}\n"
+          summary += f"成功数量: {len(success_spaces)}\n"
+          summary += f"失败数量: {len(failed_spaces)}\n"
+          summary += f"未知状态数量: {len(unknown_spaces)}\n"
+          summary += f"{'-'*50}\n具体结果:\n"
+          summary += "\n".join([f"✅ {space} 重新构建成功" for space in success_spaces])
+          summary += "\n".join([f"❌ {space} 重新构建失败" for space in failed_spaces])
+          summary += "\n".join([f"❓ {space} 重新构建状态未知" for space in unknown_spaces])
+          print(f"\n{'-'*50}")
+          print("📊 重新构建总结:")
           print(summary)
-          send_email("Hugging Face空间重新构建结果",summary)
-          with open(os.environ['GITHUB_OUTPUT'],'a')as f:
-              print("summary<<EOF",file=f)
-              print(summary,file=f)
-              print("EOF",file=f)
-              print(f"exit_code={1 if failed_spaces or unknown_spaces else 0}",file=f)
+          send_email("Hugging Face 空间重新构建结果", summary)
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              print(f"summary<<EOF", file=f)
+              print(summary, file=f)
+              print(f"EOF", file=f)
+              print(f"exit_code={1 if failed_spaces or unknown_spaces else 0}", file=f)
           if failed_spaces or unknown_spaces:
               exit(1)
           else:
@@ -150,4 +150,4 @@ jobs:
       - name: 完成状态
         if: always()
         run: |
-          echo "🏁重新构建流程已完成"
+          echo "🏁 重新构建流程已完成"
