@@ -1,9 +1,9 @@
-name: 重新构建HuggingFace空间
+name: 抱抱脸空间自动重新构建
 
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 20 * * *'  
+    - cron: '0 20 * * *'
 env:
   HF_TOKEN: ${{ secrets.HF_TOKEN }}
   USERNAME: ${{ secrets.USERNAME }}
@@ -33,6 +33,7 @@ jobs:
         run: |
           python <<EOF
           import requests, time, os, smtplib
+          from email.mime.multipart import MIMEMultipart
           from email.mime.text import MIMEText
 
           hf_token = os.environ["HF_TOKEN"]
@@ -48,67 +49,74 @@ jobs:
           def rebuild_space(space_name):
               full_space_name = f"{username}/{space_name}"
               print(f"\n{'-'*50}")
-              print(f"🔄 正在重新构建空间: {full_space_name}")
+              print(f"🔄正在重新构建空间: {full_space_name}")
               rebuild_url = f"https://huggingface.co/api/spaces/{full_space_name}/restart?factory=true"
               status_url = f"https://huggingface.co/api/spaces/{full_space_name}/runtime"
               headers = {"Authorization": f"Bearer {hf_token}", "Content-Type": "application/json"}
               try:
                   response = requests.post(rebuild_url, headers=headers)
-                  response.raise_for_status()  # 抛出 HTTP 错误异常
-                  print("✅ 重新构建请求已发送成功")
+                  response.raise_for_status()
+                  print("✅重新构建请求已发送成功")
 
                   max_attempts = 10
                   for attempt in range(max_attempts):
-                      print(f"⏳ 等待 30 秒后检查状态... (尝试 {attempt+1}/{max_attempts})")
+                      print(f"⏳等待30秒后检查状态... (尝试 {attempt+1}/{max_attempts})")
                       time.sleep(30)
                       status_response = requests.get(status_url, headers=headers)
-                      status_response.raise_for_status()  
+                      status_response.raise_for_status()
                       status_data = status_response.json()
                       stage = status_data.get("stage", "")
                       print(f"当前状态: {stage}")
                       if stage == "RUNNING":
-                          print(f"✅ 空间 {space_name} 已成功重新构建!")
+                          print(f"✅空间{space_name}已成功重新构建!")
                           return True
                       elif stage == "RUNNING_BUILDING":
-                          print("🏗️ 空间正在构建中...")
+                          print("🏗️空间正在构建中...")
                       elif "ERROR" in stage:
-                          print(f"❌ 检测到错误: {stage}")
+                          print(f"❌检测到错误:{stage}")
                           return False
-                  print("⚠️ 达到最大尝试次数，重新构建状态未知")
+                  print("⚠️达到最大尝试次数，重新构建状态未知")
                   return None
               except requests.exceptions.RequestException as e:
-                  print(f"❌ 请求错误: {e}")
+                  print(f"❌请求错误: {e}")
                   return False
               except Exception as e:
-                  print(f"❌ 发生错误: {e}")
+                  print(f"❌发生错误: {e}")
                   return False
 
-          def send_email(subject, body):
-              msg = MIMEText(body)
+          def send_email(subject, body, html_body):
+              msg = MIMEMultipart("alternative")
               msg["Subject"] = subject
               msg["From"] = email_sender
               msg["To"] = ", ".join(email_receiver)
+
+              part1 = MIMEText(body, "plain")
+              part2 = MIMEText(html_body, "html")
+              msg.attach(part1)
+              msg.attach(part2)
+
               try:
                   with smtplib.SMTP(smtp_server, smtp_port) as server:
                       server.starttls()
                       server.login(email_sender, email_password)
                       server.send_message(msg)
-                  print("✅ 邮件发送成功")
+                  print("✅邮件发送成功")
               except Exception as e:
-                  print(f"❌ 邮件发送失败: {e}")
+                  print(f"❌邮件发送失败: {e}")
 
           if not space_list:
-              print("⚠️ SPACE_LIST 为空，没有需要重新构建的空间。")
-              summary = "⚠️ SPACE_LIST 为空，没有需要重新构建的空间。"
-              send_email("Hugging Face 空间重新构建结果", summary)
+              print("⚠️SPACE_LIST为空，没有需要重新构建的空间。")
+              summary_plain = "⚠️SPACE_LIST为空，没有需要重新构建的空间。"
+              summary_html = f"<p>{summary_plain}</p>"
+              send_email("抱抱脸空间重新构建结果", summary_plain, summary_html)
               with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
                   print(f"summary<<EOF", file=f)
-                  print(summary, file=f)
+                  print(summary_plain, file=f)
                   print(f"EOF", file=f)
                   print(f"exit_code=0", file=f)
               exit(0)
 
-          print(f"🚀 准备重新构建以下空间: {', '.join(space_list)}")
+          print(f"🚀准备重新构建以下抱抱脸空间: {', '.join(space_list)}")
           success_spaces = []
           failed_spaces = []
           unknown_spaces = []
@@ -121,21 +129,42 @@ jobs:
               else:
                   unknown_spaces.append(space)
 
-          summary = f"总计空间数: {len(space_list)}\n"
-          summary += f"成功数量: {len(success_spaces)}\n"
-          summary += f"失败数量: {len(failed_spaces)}\n"
-          summary += f"未知状态数量: {len(unknown_spaces)}\n"
-          summary += f"{'-'*50}\n具体结果:\n"
-          summary += "\n".join([f"✅ {space} 重新构建成功" for space in success_spaces])
-          summary += "\n".join([f"❌ {space} 重新构建失败" for space in failed_spaces])
-          summary += "\n".join([f"❓ {space} 重新构建状态未知" for space in unknown_spaces])
+          summary_plain = f"总计抱抱脸空间数: {len(space_list)}\n"
+          summary_plain += f"成功数量: {len(success_spaces)}\n"
+          summary_plain += f"失败数量: {len(failed_spaces)}\n"
+          summary_plain += f"未知状态数量: {len(unknown_spaces)}\n"
+          summary_plain += f"{'-'*50}\n具体结果:\n"
+          summary_plain += "\n".join([f"✅{space}" for space in success_spaces])
+          summary_plain += "\n".join([f"❌{space}" for space in failed_spaces])
+          summary_plain += "\n".join([f"❓{space}" for space in unknown_spaces])
+
+          summary_html = f"""
+          <html>
+          <head></head>
+          <body>
+          <h1>抱抱脸空间重新构建结果</h1>
+          <p>总计空间数: {len(space_list)}</p>
+          <p>成功数量: <span style="color:green;">{len(success_spaces)}</span></p>
+          <p>失败数量: <span style="color:red;">{len(failed_spaces)}</span></p>
+          <p>未知状态数量: <span style="color:orange;">{len(unknown_spaces)}</span></p>
+          <hr>
+          <h2>具体结果:</h2>
+          <ul>
+          {"".join([f"<li style='color:green;'>✅{space}</li>" for space in success_spaces])}
+          {"".join([f"<li style='color:red;'>❌{space}</li>" for space in failed_spaces])}
+          {"".join([f"<li style='color:orange;'>❓{space}</li>" for space in unknown_spaces])}
+          </ul>
+          </body>
+          </html>
+          """
+
           print(f"\n{'-'*50}")
-          print("📊 重新构建总结:")
-          print(summary)
-          send_email("Hugging Face 空间重新构建结果", summary)
+          print("📊重新构建总结:")
+          print(summary_plain)
+          send_email("抱抱脸空间重新构建结果", summary_plain, summary_html)
           with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
               print(f"summary<<EOF", file=f)
-              print(summary, file=f)
+              print(summary_plain, file=f)
               print(f"EOF", file=f)
               print(f"exit_code={1 if failed_spaces or unknown_spaces else 0}", file=f)
           if failed_spaces or unknown_spaces:
@@ -150,4 +179,4 @@ jobs:
       - name: 完成状态
         if: always()
         run: |
-          echo "🏁 重新构建流程已完成"
+          echo "🏁重新构建流程已完成"
