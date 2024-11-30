@@ -3,7 +3,7 @@ name: 重新构建HuggingFace空间
 on:
   workflow_dispatch:
   schedule:
-    - cron: '0 20 * * *'  # 每天 UTC 20:00 (北京时间凌晨 4:00) 执行
+    - cron: '0 20 * * *'  
 env:
   HF_TOKEN: ""
   USERNAME: ""
@@ -41,7 +41,8 @@ jobs:
           EMAIL_RECEIVER=os.environ['EMAIL_RECEIVER'].split(',')
           SMTP_SERVER=os.environ.get('SMTP_SERVER','smtp.gmail.com')
           SMTP_PORT=int(os.environ.get('SMTP_PORT',587))
-          SPACE_LIST=os.environ['SPACE_LIST'].split(',')
+          SPACE_LIST_STR=os.environ.get('SPACE_LIST','')
+          SPACE_LIST = [space.strip() for space in SPACE_LIST_STR.split(',') if space.strip()]
           def rebuild_space(space_name):
               full_space_name=f"{USERNAME}/{space_name}"
               print(f"\n{'='*50}")
@@ -100,6 +101,17 @@ jobs:
           success_spaces=[]
           failed_spaces=[]
           unknown_spaces=[]
+          if not SPACE_LIST:
+              print("⚠️SPACE_LIST为空，没有需要重新构建的空间。")
+              summary="⚠️SPACE_LIST为空，没有需要重新构建的空间。"
+              send_email("Hugging Face空间重新构建结果",summary)
+              with open(os.environ['GITHUB_OUTPUT'],'a')as f:
+                  print("summary<<EOF",file=f)
+                  print(summary,file=f)
+                  print("EOF",file=f)
+                  print(f"exit_code=0",file=f)
+              exit(0)
+
           print(f"🚀准备重新构建以下空间:{','.join(SPACE_LIST)}")
           for space in SPACE_LIST:
               result=rebuild_space(space)
