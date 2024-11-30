@@ -28,7 +28,7 @@ jobs:
       - name: 安装依赖包
         run: |
           python -m pip install --upgrade pip
-          pip install requests
+          pip install requests pytz
       - name: 重新构建空间
         id: rebuild
         run: |
@@ -36,6 +36,7 @@ jobs:
           import requests, time, os, smtplib, datetime
           from email.mime.multipart import MIMEMultipart
           from email.mime.text import MIMEText
+          import pytz
 
           hf_token = os.environ["HF_TOKEN"]
           username = os.environ["USERNAME"]
@@ -109,7 +110,7 @@ jobs:
               print("⚠️SPACE_LIST为空，没有需要重新构建的空间。")
               summary_plain = "⚠️SPACE_LIST为空，没有需要重新构建的空间。"
               summary_html = f"<p>{summary_plain}</p>"
-              now = datetime.datetime.now()
+              now = datetime.datetime.now(pytz.timezone('Asia/Shanghai'))
               date_string = now.strftime("%m月%d日")
               send_email(f"{date_string}抱抱脸空间重新构建结果", summary_plain, summary_html)
               with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
@@ -146,64 +147,70 @@ jobs:
           <head>
               <style>
                   body {{
-                      font-family: sans-serif;
+                      font-family: 'Arial', sans-serif;
+                      margin: 20px;
+                      line-height: 1.6;
+                      color: #333;
                   }}
-                  table {{
-                      width: 100%;
-                      border-collapse: collapse;
+                  h1 {{
+                      color: #0056b3; /* Dark blue */
                   }}
-                  th, td {{
-                      text-align: left;
-                      padding: 8px;
-                      border-bottom: 1px solid #ddd;
+                  h2 {{
+                      color: #0056b3; /* Dark blue */
                   }}
-                  th {{
-                      background-color: #f0f0f0;
+                  p {{
+                      margin-bottom: 10px;
+                  }}
+                  .container {{
+                      max-width: 600px;
+                      margin: 0 auto;
+                      padding: 20px;
+                      border: 1px solid #eee;
+                      border-radius: 5px;
+                      background-color: #f9f9f9;
+                  }}
+                  .result-item {{
+                      margin-bottom: 5px;
+                      padding: 8px 12px;
+                      border-radius: 4px;
                   }}
                   .success {{
-                      color: green;
+                      background-color: #d4edda; 
+                      color: #155724;
                   }}
                   .failure {{
-                      color: red;
+                      background-color: #f8d7da; 
+                      color: #721c24;
                   }}
                   .unknown {{
-                      color: orange;
+                      background-color: #fff3cd; 
+                      color: #856404;
+                  }}
+                  strong {{
+                    font-weight: bold;
                   }}
               </style>
           </head>
           <body>
-              <h1>抱抱脸空间重新构建结果</h1>
-              <p><b>日期:</b> {datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")}</p>
-              <table>
-                  <tr>
-                      <th>总计空间数:</th>
-                      <td>{len(space_list)}</td>
-                  </tr>
-                  <tr>
-                      <th>成功数量:</th>
-                      <td class='success'>{len(success_spaces)}</td>
-                  </tr>
-                  <tr>
-                      <th>失败数量:</th>
-                      <td class='failure'>{len(failed_spaces)}</td>
-                  </tr>
-                  <tr>
-                      <th>未知状态数量:</th>
-                      <td class='unknown'>{len(unknown_spaces)}</td>
-                  </tr>
-              </table>
-              <hr>
-              <h2>具体结果:</h2>
-              <ul>
-                  {"".join([f"<li class='success'>✅ {space}</li>" for space in success_spaces])}
-                  {"".join([f"<li class='failure'>❌ {space}</li>" for space in failed_spaces])}
-                  {"".join([f"<li class='unknown'>❓ {space}</li>" for space in unknown_spaces])}
-              </ul>
+              <div class="container">
+                  <h1>抱抱脸空间重新构建结果</h1>
+                  <p><strong>日期:</strong> {datetime.datetime.now(pytz.timezone('Asia/Shanghai')).strftime("%Y-%m-%d %H:%M:%S %Z%z")}</p>
+                  <p><strong>总计空间数:</strong> {len(space_list)}</p>
+                  <p><strong>成功数量:</strong> <span class='success'>{len(success_spaces)}</span></p>
+                  <p><strong>失败数量:</strong> <span class='failure'>{len(failed_spaces)}</span></p>
+                  <p><strong>未知状态数量:</strong> <span class='unknown'>{len(unknown_spaces)}</span></p>
+                  <h2>具体结果:</h2>
+                  <ul>
+                      {"".join([f"<li class='result-item success'>✅ {space}</li>" for space in success_spaces])}
+                      {"".join([f"<li class='result-item failure'>❌ {space}</li>" for space in failed_spaces])}
+                      {"".join([f"<li class='result-item unknown'>❓ {space}</li>" for space in unknown_spaces])}
+                  </ul>
+              </div>
           </body>
           </html>
           """
 
-          now = datetime.datetime.now()
+          now = datetime.datetime.now(pytz.timezone('Asia/Shanghai'))
           date_string = now.strftime("%m月%d日")
           send_email(f"{date_string}抱抱脸空间重新构建结果", summary_plain, summary_html)
           with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
